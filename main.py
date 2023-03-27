@@ -1,42 +1,55 @@
-import googlesearch
-import requests
-from bs4 import BeautifulSoup
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
-# Read text file
-with open('input.txt', 'r') as file:
-    text = file.read()
+# Enter your custom search engine ID and API key here
+SEARCH_ENGINE_ID = '05a0718899f664fda'
+API_KEY = 'AIzaSyAe34tm9-Og0El5ISwScopDSlYspE-XwO0'
 
-# Tokenize text based on full stops
-sentences = text.split('.')
 
-# Set up Google Search API parameters
-params = {
-    "num": 1,  # Number of search results to retrieve (in this case, only the first result)
-    "start": 0,  # Starting point of search results (default is 0)
-}
+def search_and_store_first_url(query):
+    """
+    Searches a query on a custom Google search engine and stores the first URL.
 
-# Use the Google Search API to retrieve search results for each sentence
-results_dict = {}  # Dictionary to store URLs for each query
+    :param query: The query to search for.
+    :return: A dictionary containing the search results, with the query as the key.
+    """
+    search = f'"{query}"'
+
+    # Build the service object for the Custom Search JSON API
+    service = build('customsearch', 'v1', developerKey=API_KEY)
+
+    # Perform the search request and store the first URL in a dictionary with the query as the key
+    try:
+        response = service.cse().list(q=search, cx=SEARCH_ENGINE_ID, num=1).execute()
+        if 'items' in response:
+            first_url = response['items'][0]['link']
+            result_dict = {query: first_url}
+        else:
+            result_dict = {query: None}
+    except HttpError as error:
+        print(f'An error occurred: {error}')
+        result_dict = {query: None}
+
+    # Return the first URL from the search results
+    return result_dict
+
+# Test the function with a sample query
+
+
+query1 = 'In 2015, the University of Birmingham conducted a carbon dating analysis of a Quranic manuscript known as the "Birmingham Quran".'
+query2 = 'machine learning'
+result_dict = {}
+
+result_dict.update(search_and_store_first_url(query1))
+result_dict.update(search_and_store_first_url(query2))
+
+filename = 'input.txt'
+with open(filename, 'r', encoding='utf-8') as f:
+    data = f.read()  # Read the entire file into a string variable
+
+sentences = data.split('.')  # Split the string into sentences based on full stops
+
 for sentence in sentences:
-    sentence = sentence.strip()  # Remove any leading/trailing whitespace
-    if sentence:  # Ignore empty sentences
-        query = f'"{sentence}"'  # Set query parameter for current sentence in quotes
-        params['q'] = query
-        search_results = list(googlesearch.search(query, num_results=1))  # Retrieve search results
-        if search_results:  # If results were found, retrieve the HTML soup for the first result
-            url = search_results[0]
-            response = requests.get(url)
-            soup = BeautifulSoup(response.content, 'html.parser')
-            if sentence.lower() in soup.text.lower():  # Check if query is in soup
-                results_dict[query] = url  # Store URL for query
-            else:
-                results_dict[query] = None  # Store None for query if not found
-        else:  # If no results were found, store None for query
-            results_dict[query] = None
+    result_dict.update(search_and_store_first_url(sentence))
 
-# Print results
-for query, url in results_dict.items():
-    if url:
-        print(f"Query '{query}' found in soup for URL: {url}\n")
-    else:
-        print(f"Query '{query}' not found in any soup\n")
+print(result_dict)
